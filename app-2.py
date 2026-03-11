@@ -1,310 +1,198 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Config:
+    # HeyGen API
+    HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
+    HEYGEN_API_URL = "https://api.heygen.com/v2/video/generate"
+
+    # OpenAI
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+    # YouTube API
+    YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+
+    # Database
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///autonomous_agent.db")
+
+    # Content Sources
+    REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
+    REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
+
+    # Paths
+    VIDEO_OUTPUT_DIR = "generated_videos"
+    ASSETS_DIR = "assets"
+
+    # Agent Settings
+    MAX_SCRIPT_LENGTH = 2000
+    VIDEO_DURATION_LIMIT = 600  # 10 minutes
+
+    # Autonomous Mode
+    AUTO_GENERATION_INTERVAL = 6  # hours
+    TRENDING_CHECK_INTERVAL = 1   # hour
+
+config = Config()
+
+3. app.py - Main Streamlit Application
+
 import streamlit as st
 import requests
+import json
+import os
+import time
 from datetime import datetime
+import base64
+from pathlib import Path
+import sys
 
+# Add project root to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config import Config
+from agents.idea_generator import IdeaGenerator
+from agents.script_writer import ScriptWriter
+from agents.video_producer import VideoProducer
+
+# Page configuration
 st.set_page_config(
-    page_title="Agent Studio",
-    page_icon="⚡",
+    page_title="Autonomous AI Agent Studio",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# Custom CSS
 st.markdown("""
 <style>
-    .main { background-color: #040810; }
-    .stApp { background-color: #040810; }
-    .agent-card {
-        background: #060c16;
-        border: 1px solid #0f1d2e;
-        border-radius: 10px;
-        padding: 12px;
-        margin-bottom: 8px;
+    .main-header {
+        font-size: 2.5rem;
+        color: #1E88E5;
+        text-align: center;
+        margin-bottom: 2rem;
     }
-    .output-box {
-        background: #060c16;
-        border: 1px solid #0f1d2e;
-        border-radius: 10px;
-        padding: 16px;
-        white-space: pre-wrap;
-        font-family: monospace;
-        font-size: 13px;
-        color: #94a3b8;
+    .sub-header {
+        font-size: 1.5rem;
+        color: #424242;
+        margin-top: 1.5rem;
     }
-    h1, h2, h3 { color: #00ff94 !important; }
-    .stSelectbox label { color: #06b6d4 !important; }
-    .stTextInput label { color: #94a3b8 !important; }
-    .stTextArea label { color: #94a3b8 !important; }
-    div[data-testid="stSidebar"] { background-color: #060c16; }
+    .success-box {
+        background-color: #E8F5E9;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 5px solid #4CAF50;
+    }
+    .video-container {
+        display: flex;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    .stButton>button {
+        width: 100%;
+        background-color: #1E88E5;
+        color: white;
+        font-weight: bold;
+    }
+    .agent-status {
+        background-color: #FFF3E0;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── AGENTS ───────────────────────────────────────────────────────────────────
+class AutonomousAgentApp:
+    def __init__(self):
+        self.config = Config()
+        self.idea_generator = IdeaGenerator()
+        self.script_writer = ScriptWriter()
+        self.video_producer = VideoProducer()
 
-AGENTS = {
-    "🎯 Workflow Director": {
-        "group": "TASKLET", "role": "ORCHESTRATION",
-        "description": "Master coordinator. Reads the task, assigns the right agents in sequence, routes outputs between them.",
-        "system": "You are Workflow Director, the master orchestrator. Given any task or goal, produce a clear execution plan: which agents to use, in what order, what inputs each needs, and how outputs connect. Think like a senior project manager. Be decisive and structured.",
-        "inputs": "task / goal / constraints",
-        "outputs": "execution-plan, agent-queue, dependency-map",
-    },
-    "🔍 Research Scout": {
-        "group": "TASKLET", "role": "RESEARCH",
-        "description": "Deep-dives topics and documents. Returns structured briefings ready for downstream agents.",
-        "system": "You are Research Scout. Given a topic, URL, or document, extract the most relevant facts, stats, and insights. Return a structured response with: title, key points, data references, and recommended next action. Be thorough and concise.",
-        "inputs": "topic / url / document",
-        "outputs": "briefing, summary, data-pack",
-    },
-    "⚒️ Prompt Forge": {
-        "group": "TASKLET", "role": "PROMPT ENGINEERING",
-        "description": "Takes raw user intent and builds precision-engineered prompts for any agent or model.",
-        "system": "You are Prompt Forge. Take raw user intent and craft precise, structured prompts optimised for the target agent or model. Include: optimised prompt, system prompt suggestion, chain recommendation, and complexity estimate. Be surgical and specific.",
-        "inputs": "intent / target agent / context",
-        "outputs": "optimised-prompt, system-prompt, chain",
-    },
-    "🧪 QA Sentinel": {
-        "group": "TASKLET", "role": "QUALITY ASSURANCE",
-        "description": "Reviews any agent output for accuracy, tone, completeness and compliance.",
-        "system": "You are QA Sentinel. Review any content or output submitted. Check: accuracy, tone, completeness, consistency, and compliance. Score 0-100. List issues with severity. Provide a corrected version if needed. Be ruthless but fair.",
-        "inputs": "agent output / ruleset / brand voice",
-        "outputs": "pass-fail, score, annotated output, fixes",
-    },
-    "🗂️ Data Parser": {
-        "group": "TASKLET", "role": "DATA TRANSFORMATION",
-        "description": "Converts raw inputs into clean typed schemas for any agent.",
-        "system": "You are Data Parser. Transform any raw input into clean, structured data. Detect and fix anomalies. Normalise formats. Return: clean structured output, schema description, anomalies found, and confidence score.",
-        "inputs": "csv / json / raw text / api response",
-        "outputs": "clean-json, typed-schema, normalised rows",
-    },
-    "🧠 Memory Keeper": {
-        "group": "TASKLET", "role": "CONTEXT MANAGEMENT",
-        "description": "Stores, retrieves, and injects persistent context across all agents in a session.",
-        "system": "You are Memory Keeper. Manage context across agent interactions. Summarise and store information clearly. When asked to retrieve, return the most relevant context for the current task. Track: decisions made, outputs produced, and key facts.",
-        "inputs": "context / session info / key-value pairs",
-        "outputs": "retrieved-context, updated-memory, summary",
-    },
-    "⚡ Apex Coder": {
-        "group": "CODE BRAIN", "role": "ELITE CODE AGENT",
-        "description": "The best coding agent. Writes production-grade code in any language.",
-        "system": "You are Apex Coder, an elite software engineer. Write clean, production-ready, well-documented code. Always explain your approach first. Write tests alongside code when relevant. Flag potential issues proactively. Suggest optimisations. Never produce placeholder or TODO code unless explicitly asked.",
-        "inputs": "task / codebase / language / framework",
-        "outputs": "code, tests, docs, review",
-    },
-    "🔬 Code Reviewer": {
-        "group": "CODE BRAIN", "role": "REVIEW & CRITIQUE",
-        "description": "Deep code review. Checks for bugs, security holes, performance issues and code smells.",
-        "system": "You are Code Reviewer. Perform exhaustive code reviews. Check: security vulnerabilities, performance bottlenecks, code smells, anti-patterns, readability, maintainability, and test coverage gaps. Score overall quality 0-100. List issues by severity: critical, high, medium, low. Always provide fix suggestions.",
-        "inputs": "code / language / ruleset",
-        "outputs": "annotated code, issue list, severity scores, fixes",
-    },
-    "🧬 Test Brain": {
-        "group": "CODE BRAIN", "role": "TEST ENGINEERING",
-        "description": "Generates exhaustive test suites — unit, integration, e2e, edge cases.",
-        "system": "You are Test Brain. Generate comprehensive test suites for any code or specification. Cover: happy path, edge cases, error states, boundary values, and negative tests. Specify the framework. Estimate coverage percentage. Highlight gaps. Always include test data examples.",
-        "inputs": "code / function spec / framework",
-        "outputs": "test suite, coverage report, edge cases",
-    },
-    "🩺 Debug Doctor": {
-        "group": "CODE BRAIN", "role": "DIAGNOSIS & FIX",
-        "description": "Diagnoses broken code and stack traces. Root cause analysis not surface fixes.",
-        "system": "You are Debug Doctor. Diagnose any code error, stack trace, or broken behaviour. Always find the root cause not just the symptom. Provide: root cause explanation, precise fix with code, why the bug occurred, and how to prevent it in future.",
-        "inputs": "error message / stack trace / code / logs",
-        "outputs": "root cause, fix, explanation, prevention advice",
-    },
-    "🏛️ Arch Mind": {
-        "group": "CODE BRAIN", "role": "SYSTEM ARCHITECTURE",
-        "description": "Designs scalable system architectures. Picks the right patterns, databases and tech stack.",
-        "system": "You are Arch Mind. Design robust, scalable system architectures. Consider: scale requirements, cost, team size, latency, and existing stack. Produce: architecture overview, tech stack with reasoning, component breakdown, data flow, key tradeoffs, and infrastructure recommendations.",
-        "inputs": "requirements / scale / existing stack",
-        "outputs": "architecture plan, tech stack, tradeoffs",
-    },
-    "📖 Doc Writer": {
-        "group": "CODE BRAIN", "role": "DOCUMENTATION",
-        "description": "Transforms code and specs into developer-grade docs. READMEs, API docs, guides.",
-        "system": "You are Doc Writer. Produce clear, comprehensive developer documentation from any code, spec, or architecture. Match tone to audience. Always include: overview, setup instructions, usage examples, and API reference where relevant.",
-        "inputs": "code / architecture / api spec",
-        "outputs": "readme, api docs, inline comments, guide",
-    },
-}
+        # Create directories
+        Path(self.config.VIDEO_OUTPUT_DIR).mkdir(exist_ok=True)
+        Path(self.config.ASSETS_DIR).mkdir(exist_ok=True)
 
-# ─── SESSION STATE ────────────────────────────────────────────────────────────
+    def get_available_avatars(self):
+        """Fetch available avatars from HeyGen API"""
+        try:
+            headers = {
+                "X-Api-Key": self.config.HEYGEN_API_KEY,
+                "Content-Type": "application/json"
+            }
 
-if "log" not in st.session_state:
-    st.session_state.log = []
-if "outputs" not in st.session_state:
-    st.session_state.outputs = {}
+            response = requests.get(
+                "https://api.heygen.com/v1/avatars",
+                headers=headers
+            )
 
-# ─── API CALLS ────────────────────────────────────────────────────────────────
+            if response.status_code == 200:
+                avatars = response.json().get("data", {}).get("avatars", [])
+                return {avatar["name"]: avatar["avatar_id"] for avatar in avatars}
+            else:
+                # Fallback to default avatars if API fails
+                return {
+                    "Adam": "9e5c5445d1c84e1d8e2f8c5c5c5c5c5c",
+                    "Emma": "8d7c5445d1c84e1d8e2f8c5c5c5c5c5d",
+                    "Alex": "7c6c5445d1c84e1d8e2f8c5c5c5c5c5e",
+                    "Sophia": "6b5c5445d1c84e1d8e2f8c5c5c5c5c5f",
+                    "Michael": "5a4c5445d1c84e1d8e2f8c5c5c5c5c5g"
+                }
+        except Exception as e:
+            st.error(f"Error fetching avatars: {e}")
+            return {}
 
-def call_deepseek(system, message, api_key):
-    try:
-        res = requests.post(
-            "https://api.deepseek.com/chat/completions",
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-            json={
-                "model": "deepseek-chat",
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": message}],
-                "max_tokens": 2000, "temperature": 0.7,
-            },
-            timeout=60
-        )
-        data = res.json()
-        if "error" in data:
-            return f"Error: {data['error']['message']}"
-        return data["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"DeepSeek error: {str(e)}"
+    def get_available_voices(self):
+        """Available voices for HeyGen"""
+        return {
+            "Adam (US)": "1bd001e7e50f421d891986aad5158bc8",
+            "Emma (US)": "2ce112f7e60f531e992097bbe6269cd9",
+            "Alex (UK)": "3df22307f70f642fa8a1a88cc7378dea",
+            "Sophia (AU)": "4ef33417f80f753fbb2b299dd8489efb",
+            "Michael (US)": "5ff44527f90f864fcc3c3aaee959a00c"
+        }
 
-def call_ollama(system, message, endpoint, model):
-    try:
-        res = requests.post(
-            f"{endpoint.rstrip('/')}/api/chat",
-            json={
-                "model": model,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": message}],
-                "stream": False,
-            },
-            timeout=120
-        )
-        return res.json().get("message", {}).get("content", "No response.")
-    except Exception as e:
-        return f"Ollama error: {str(e)}"
+    def generate_video(self, script, avatar_id, voice_id, video_title):
+        """Generate video using HeyGen API v2"""
+        try:
+            headers = {
+                "X-Api-Key": self.config.HEYGEN_API_KEY,
+                "Content-Type": "application/json"
+            }
 
-def call_openai_compatible(system, message, api_key, base_url, model):
-    try:
-        res = requests.post(
-            f"{base_url.rstrip('/')}/chat/completions",
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-            json={
-                "model": model,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": message}],
-                "max_tokens": 2000,
-            },
-            timeout=120
-        )
-        data = res.json()
-        if "error" in data:
-            return f"Error: {data['error']['message']}"
-        return data["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"API error: {str(e)}"
+            payload = {
+                "video_inputs": [{
+                    "character": {
+                        "type": "avatar",
+                        "avatar_id": avatar_id,
+                        "avatar_style": "normal"
+                    },
+                    "voice": {
+                        "type": "text",
+                        "input_text": script,
+                        "voice_id": voice_id
+                    },
+                    "background": {
+                        "type": "color",
+                        "value": "#FFFFFF"
+                    }
+                }],
+                "dimension": {
+                    "width": 1920,
+                    "height": 1080
+                },
+                "test": False
+            }
 
-# ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+            st.info("🚀 Generating video... This may take 1-2 minutes.")
 
-with st.sidebar:
-    st.markdown("# ⚡ AGENT STUDIO")
-    st.markdown("### 🧠 Brain Connection")
+            # Make API request
+            response = requests.post(
+                self.config.HEYGEN_API_URL,
+                headers=headers,
+                json=payload
+            )
+</div>
 
-    brain = st.radio("Select Brain", ["DeepSeek API", "Ollama Local", "LM Studio / Custom"])
 
-    api_key = ""
-    ollama_endpoint = "http://localhost:11434"
-    ollama_model = "llama3"
-    custom_url = ""
-    custom_model = ""
-
-    if brain == "DeepSeek API":
-        api_key = st.text_input("DeepSeek API Key", type="password", placeholder="sk-...")
-        st.caption("Key stays private in your session only")
-
-    elif brain == "Ollama Local":
-        ollama_endpoint = st.text_input("Ollama Endpoint", value="http://localhost:11434")
-        ollama_model = st.text_input("Model", value="llama3", placeholder="llama3 / qwen3 / mistral")
-        st.caption("✅ Free — no API key needed")
-
-    elif brain == "LM Studio / Custom":
-        custom_url = st.text_input("API Base URL", placeholder="http://localhost:1234/v1")
-        api_key = st.text_input("API Key (if needed)", type="password", placeholder="optional")
-        custom_model = st.text_input("Model name", placeholder="qwen3 / llama3 etc")
-        st.caption("✅ Works with LM Studio, Qwen, any OpenAI-compatible API")
-
-    st.markdown("---")
-    st.markdown("### 🤖 Select Agent")
-
-    groups = {"TASKLET": [], "CODE BRAIN": []}
-    for name, data in AGENTS.items():
-        groups[data["group"]].append(name)
-
-    st.markdown("**◆ TASKLET AGENTS**")
-    agent_name = st.selectbox("", list(AGENTS.keys()), label_visibility="collapsed")
-
-    st.markdown("---")
-    agent = AGENTS[agent_name]
-    st.markdown(f"**Role:** `{agent['role']}`")
-    st.markdown(f"**Inputs:** {agent['inputs']}")
-    st.markdown(f"**Outputs:** {agent['outputs']}")
-
-# ─── MAIN AREA ────────────────────────────────────────────────────────────────
-
-st.markdown(f"## {agent_name}")
-st.markdown(f"*{agent['description']}*")
-st.markdown("---")
-
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    task = st.text_area(
-        "Give this agent a task",
-        height=150,
-        placeholder=f"Tell {agent_name} what to do...\n\nExample: Review this Python function for bugs and performance issues:\n\ndef add(a, b):\n    return a + b"
-    )
-
-    run = st.button(f"▶ RUN {agent_name}", type="primary", use_container_width=True)
-
-    if run:
-        if not task.strip():
-            st.warning("Give the agent a task first.")
-        else:
-            with st.spinner(f"{agent_name} is thinking..."):
-                timestamp = datetime.now().strftime("%H:%M:%S")
-
-                if brain == "DeepSeek API":
-                    if not api_key:
-                        st.error("Add your DeepSeek API key in the sidebar.")
-                    else:
-                        result = call_deepseek(agent["system"], task, api_key)
-                        st.session_state.outputs[agent_name] = result
-                        st.session_state.log.append(f"[{timestamp}] ✓ {agent_name} — complete")
-
-                elif brain == "Ollama Local":
-                    result = call_ollama(agent["system"], task, ollama_endpoint, ollama_model)
-                    st.session_state.outputs[agent_name] = result
-                    st.session_state.log.append(f"[{timestamp}] ✓ {agent_name} — complete")
-
-                elif brain == "LM Studio / Custom":
-                    if not custom_url:
-                        st.error("Add your API base URL in the sidebar.")
-                    else:
-                        result = call_openai_compatible(agent["system"], task, api_key, custom_url, custom_model)
-                        st.session_state.outputs[agent_name] = result
-                        st.session_state.log.append(f"[{timestamp}] ✓ {agent_name} — complete")
-
-    if agent_name in st.session_state.outputs:
-        st.markdown("### ✅ Output")
-        st.markdown(f'<div class="output-box">{st.session_state.outputs[agent_name]}</div>', unsafe_allow_html=True)
-        st.download_button(
-            "⬇ Download Output",
-            data=st.session_state.outputs[agent_name],
-            file_name=f"{agent_name.replace(' ', '_')}_output.txt",
-            mime="text/plain"
-        )
-
-with col2:
-    st.markdown("### 📊 Execution Log")
-    if st.session_state.log:
-        log_text = "\n".join(st.session_state.log[-20:])
-        st.code(log_text, language=None)
-    else:
-        st.caption("No executions yet.")
-
-    if st.button("⟳ Clear Log", use_container_width=True):
-        st.session_state.log = []
-        st.rerun()
-
-    st.markdown("### 📋 All Outputs")
-    if st.session_state.outputs:
-        for name, output in st.session_state.outputs.items():
-            with st.expander(name):
-                st.write(output[:300] + "..." if len(output) > 300 else output)
-    else:
-        st.caption("No outputs yet.")
