@@ -34,9 +34,6 @@ class Config:
     TRENDING_CHECK_INTERVAL = 1   # hour
 
 config = Config()
-
-3. app.py - Main Streamlit Application
-
 import streamlit as st
 import requests
 import json
@@ -194,5 +191,4 @@ class AutonomousAgentApp:
                 json=payload
             )
 </div>
-
 
