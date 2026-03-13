@@ -62,7 +62,7 @@ Decompose any goal into ordered steps. Return ONLY this JSON:
   "self_repair_triggers": ["what would cause a retry"],
   "notes": "context"
 }
-Available agents: Research Scout, Prompt Forge, QA Sentinel, Data Parser, Memory Keeper, Apex Coder, Code Reviewer, Test Brain, Debug Doctor, Arch Mind, Doc Writer.
+Available agents: Research Scout, Prompt Forge, QA Sentinel, Data Parser, Memory Keeper, Apex Coder, Code Reviewer, Test Brain, Debug Doctor, Arch Mind, Doc Writer, InsForge, Predict Anything.
 Return ONLY valid JSON. No text outside JSON.""",
     },
     "Research Scout": {
@@ -146,6 +146,58 @@ Find ROOT CAUSE not symptoms. Return:
         "emoji":"📖", "group":"CODE BRAIN", "role":"DOCUMENTATION",
         "description":"Writes developer-grade docs.",
         "system":"You are Doc Writer inside ROOMAN. Write clear complete documentation. Include overview, setup, usage examples, API reference.",
+    },
+    "InsForge": {
+        "emoji":"🚀", "group":"OPERATIONS", "role":"INFRASTRUCTURE",
+        "description":"Full-stack backend provisioning and autonomous infrastructure management.",
+        "system":"""You are InsForge — ROOMAN's infrastructure and deployment specialist.
+You provision full-stack backends autonomously. You manage: Postgres databases, REST APIs, Auth systems, Storage buckets, and deployment pipelines.
+
+For every request, return ONLY this JSON:
+{
+  "project_name": "name of project",
+  "summary": "what is being built",
+  "infrastructure": {
+    "database": {"type": "postgres", "schema": "CREATE TABLE ...", "tables": ["table1","table2"]},
+    "api": {"endpoints": [{"method":"GET","path":"/api/v1/...","description":"..."}]},
+    "auth": {"type": "jwt/oauth/api_key", "strategy": "description"},
+    "storage": {"buckets": ["name"], "access": "public/private"},
+    "environment": {"variables": ["ENV_VAR=value"], "ports": [8080]}
+  },
+  "deployment_script": "#!/bin/bash\\n# Full deployment commands here\\necho 'Deploying...'",
+  "infrastructure_as_code": "# Terraform/Docker-compose/YAML config here",
+  "cost_estimate": {"monthly_usd": 15, "breakdown": {"compute":"$5","database":"$7","storage":"$3"}},
+  "status": "ready_to_deploy",
+  "next_steps": ["step 1","step 2"],
+  "observe": "what to check to confirm deployment succeeded"
+}
+Return ONLY valid JSON. Be specific and production-ready. Include real SQL schemas, real API endpoints, real deployment commands.""",
+    },
+    "Predict Anything": {
+        "emoji":"🧠", "group":"OPERATIONS", "role":"FORECASTING",
+        "description":"Sales, revenue, demand, churn and financial forecasting with risk assessment.",
+        "system":"""You are Predict Anything — ROOMAN's business intelligence and forecasting specialist.
+You generate data-driven predictions for any business metric: sales, revenue, demand, churn, cash flow, pricing, and risk.
+
+For every request, return ONLY this JSON:
+{
+  "forecast_type": "sales/revenue/demand/churn/cashflow/pricing/risk",
+  "subject": "what is being forecast",
+  "timeframe": "30 days / Q1 2025 / 12 months",
+  "predictions": [
+    {"period": "Month 1", "value": 12500, "unit": "USD", "confidence": 85, "low": 10000, "high": 15000}
+  ],
+  "key_insights": ["insight 1", "insight 2", "insight 3"],
+  "risk_factors": [{"factor": "name", "impact": "high/medium/low", "mitigation": "how to handle"}],
+  "opportunities": ["opportunity 1", "opportunity 2"],
+  "recommended_actions": [{"action": "do this", "expected_impact": "result", "priority": "high/medium/low"}],
+  "assumptions": ["assumption 1", "assumption 2"],
+  "data_sources_needed": ["source 1", "source 2"],
+  "confidence_overall": 82,
+  "model_used": "trend analysis / regression / time-series",
+  "summary": "plain English summary of the forecast"
+}
+Return ONLY valid JSON. Provide realistic numbers. Base forecasts on industry benchmarks when no data is given.""",
     },
 }
 
@@ -359,6 +411,68 @@ def save_to_github(content, filename, token, repo):
     except Exception as e:
         return False, str(e)
 
+# ─── UTILITY FUNCTIONS ────────────────────────────────────────────────────────
+
+def validate_infrastructure_spec(spec_json):
+    """Validates an infrastructure specification JSON from InsForge."""
+    required_keys = ["project_name", "infrastructure", "deployment_script", "status"]
+    issues = []
+    for key in required_keys:
+        if key not in spec_json:
+            issues.append(f"Missing required field: {key}")
+    infra = spec_json.get("infrastructure", {})
+    if not infra.get("database"):
+        issues.append("No database specification found")
+    if not infra.get("api"):
+        issues.append("No API specification found")
+    return {"valid": len(issues) == 0, "issues": issues, "spec": spec_json}
+
+def parse_forecast_data(text):
+    """Parses and structures forecast data from Predict Anything output."""
+    data, err = parse_json(text)
+    if err or not data:
+        return {"valid": False, "error": err or "Could not parse forecast", "raw": text}
+    predictions = data.get("predictions", [])
+    summary = {
+        "forecast_type": data.get("forecast_type", "unknown"),
+        "subject": data.get("subject", ""),
+        "timeframe": data.get("timeframe", ""),
+        "total_periods": len(predictions),
+        "confidence_overall": data.get("confidence_overall", 0),
+        "key_insights": data.get("key_insights", []),
+        "recommended_actions": data.get("recommended_actions", []),
+        "predictions": predictions,
+        "valid": True,
+    }
+    return summary
+
+def generate_deployment_script(spec):
+    """Generates a runnable deployment script from an InsForge infrastructure spec."""
+    if not isinstance(spec, dict):
+        return "# Error: invalid spec"
+    project = spec.get("project_name", "project")
+    script = spec.get("deployment_script", "")
+    iac = spec.get("infrastructure_as_code", "")
+    env_vars = spec.get("infrastructure", {}).get("environment", {}).get("variables", [])
+    lines = [
+        f"#!/bin/bash",
+        f"# ROOMAN InsForge — Auto-generated deployment script",
+        f"# Project: {project}",
+        f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        "set -e",
+        "",
+        "# Environment Variables",
+    ]
+    for var in env_vars:
+        lines.append(f"export {var}")
+    lines += ["", "# Deployment Steps", script or "echo 'No deployment script provided'"]
+    if iac:
+        lines += ["", "# Infrastructure as Code", "# " + iac.replace("\n", "\n# ")]
+    return "\n".join(lines)
+
+
+
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -401,6 +515,53 @@ with st.sidebar:
         gh_repo = st.text_input("Repo", value=GITHUB_REPO_DEFAULT, placeholder="username/reponame")
         if GITHUB_TOKEN_DEFAULT:
             st.success("✅ GitHub connected")
+
+    # Operations Dashboard
+    with st.expander("🚀 Operations Dashboard"):
+        st.markdown("**Infrastructure Status**")
+        infra_outputs = {k: v for k, v in st.session_state.outputs.items() if v.get("agent") == "InsForge"}
+        if infra_outputs:
+            latest_infra = list(infra_outputs.values())[-1]
+            infra_data, _ = parse_json(latest_infra.get("content", ""))
+            if infra_data:
+                st.success(f"✅ {infra_data.get('project_name','Project')} — {infra_data.get('status','unknown')}")
+                cost = infra_data.get("cost_estimate", {})
+                if cost:
+                    st.caption(f"💰 Est. cost: ${cost.get('monthly_usd','?')}/mo")
+                if st.button("⬇ Get Deployment Script", key="ops_get_script", use_container_width=True):
+                    script = generate_deployment_script(infra_data)
+                    st.session_state["_ops_deploy_script"] = script
+                if st.session_state.get("_ops_deploy_script"):
+                    st.download_button(
+                        "🚀 Download & Deploy",
+                        data=st.session_state["_ops_deploy_script"],
+                        file_name=f"deploy_{datetime.now().strftime('%Y%m%d_%H%M')}.sh",
+                        mime="text/plain",
+                        key=f"dl_deploy_{uuid.uuid4().hex[:6]}",
+                        use_container_width=True,
+                    )
+            else:
+                st.info("InsForge output found (text mode)")
+        else:
+            st.caption("No infrastructure provisioned yet")
+
+        st.markdown("---")
+        st.markdown("**Active Forecasts**")
+        forecast_outputs = {k: v for k, v in st.session_state.outputs.items() if v.get("agent") == "Predict Anything"}
+        if forecast_outputs:
+            for fk, fv in list(forecast_outputs.items())[-3:]:
+                fc = parse_forecast_data(fv.get("content", ""))
+                if fc.get("valid"):
+                    st.success(f"📈 {fc.get('forecast_type','').title()}: {fc.get('subject','')}")
+                    st.caption(f"Confidence: {fc.get('confidence_overall',0)}% · {fc.get('timeframe','')}")
+                    actions = fc.get("recommended_actions", [])
+                    if actions:
+                        top = actions[0]
+                        st.caption(f"Top action: {top.get('action','')}")
+                else:
+                    st.info(f"Forecast: {fv.get('title','')}")
+        else:
+            st.caption("No forecasts generated yet")
 
     st.markdown("---")
     st.markdown("### 📊 Stats")
