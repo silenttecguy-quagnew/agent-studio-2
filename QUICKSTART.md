@@ -30,6 +30,31 @@ Your browser opens automatically at `http://localhost:8501`.
 
 > **On Termux/tablet:** Run the same commands. Streamlit opens in your browser tab.
 
+### Streamlit Cloud setup (fix for wrong/old app)
+
+Use these exact app settings in Streamlit Cloud:
+
+- Main file path: `app.py`
+- Requirements file: `requirements.txt`
+- Branch: `main`
+
+This repo now includes `app.py` as a stable launcher to run the current app (`app-2.py`) so Cloud serves the latest build.
+
+Add required secrets in **App settings -> Secrets**:
+
+```toml
+DEEPSEEK_API_KEY="your_deepseek_key"
+HEYGEN_API_KEY="your_heygen_key"
+GITHUB_TOKEN="optional"
+GITHUB_REPO="optional_owner/repo"
+```
+
+After saving secrets, click **Reboot app**.
+
+If API or avatar still fail, run sidebar checks:
+- **Test DeepSeek Key**
+- **Test HeyGen Key**
+
 ---
 
 ## 2. Pick Your AI Brain (30 seconds)
@@ -112,6 +137,47 @@ In the sidebar, expand **🚀 Operations Dashboard** to see:
 - **Download button** appears after every agent run
 - **GitHub Memory** (sidebar): Connect your GitHub repo to save all outputs permanently
 - All outputs stay in the **📋 Outputs** tab during your session
+
+---
+
+## 7. Always-On Background Automation
+
+Run this to initialize the autonomous engine database:
+
+```bash
+python3 automation/always_on_engine.py init-db
+```
+
+Add a test lead and revenue event:
+
+```bash
+python3 automation/always_on_engine.py add-lead --name "Test Lead" --email "lead@example.com" --source website --offer "Growth Engine" --value 1999
+python3 automation/always_on_engine.py add-revenue --source stripe --type invoice_paid --amount 499
+```
+
+Run all automations once:
+
+```bash
+python3 automation/always_on_engine.py run-once --task all --topic "cyber security" --niche "managed security" --geo AU
+```
+
+Start autonomous mode in background:
+
+```bash
+nohup python3 automation/always_on_engine.py run-daemon --timezone Australia/Brisbane --topic "cyber security" --niche "managed security" --geo AU > automation/engine.log 2>&1 &
+```
+
+Check live output:
+
+```bash
+tail -f automation/engine.log
+```
+
+Read today KPI snapshot:
+
+```bash
+python3 automation/always_on_engine.py kpi-today
+```
 
 ---
 

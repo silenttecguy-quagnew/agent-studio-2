@@ -1,0 +1,16 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local virtual environment
+.venv/
+
+# ROOMAN local private data
+.rooman_memory.json
+.rooman_business_profile.json
+.rooman_avatar_profile.json
+automation/always_on.db
+automation/engine.log
+
+# Streamlit local settings/secrets
+.streamlit/secrets.toml
