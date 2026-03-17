@@ -14,3 +14,6 @@ automation/engine.log
 
 # Streamlit local settings/secrets
 .streamlit/secrets.toml
+
+# SaaS platform database (local data)
+saas_platform.db
