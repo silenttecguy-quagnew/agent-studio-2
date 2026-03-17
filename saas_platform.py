@@ -9,7 +9,7 @@ import json
 import uuid
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ── Optional Stripe ────────────────────────────────────────────────────────────
@@ -35,7 +35,9 @@ def get_secret(key, fallback=""):
 STRIPE_SECRET_KEY = get_secret("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE = get_secret("STRIPE_PUBLISHABLE_KEY")
 ADMIN_PASSWORD_HASH = get_secret(
-    "ADMIN_PASSWORD_HASH", hashlib.sha256(b"admin1234").hexdigest()
+    "ADMIN_PASSWORD_HASH",
+    # Default is deliberately not a dictionary word — set ADMIN_PASSWORD_HASH secret in production.
+    hashlib.sha256(b"FlowForge#Change-Me-Now!").hexdigest(),
 )
 APP_BASE_URL = get_secret("APP_BASE_URL", "http://localhost:8501")
 
@@ -545,9 +547,9 @@ def render_landing():
 
     services = [
         ("⚙️", "Workflow Automation", "Connect your existing tools and let data move automatically — no manual work needed."),
-        ("✉️", "Email Campaigns", "Automated sequences that nurture leads, follow up on enquiries, and keep clients engaged."),
+        ("✉️", "Email Campaigns", "Automated sequences that nurture leads, follow up on inquiries, and keep clients engaged."),
         ("🎨", "Design Assets", "On-brand graphics, social content, and marketing materials produced fast."),
-        ("💬", "Customer Service", "Smart response systems that handle FAQs, route enquiries, and keep clients updated."),
+        ("💬", "Customer Service", "Smart response systems that handle FAQs, route inquiries, and keep clients updated."),
     ]
     for col, (icon, title, desc) in zip(st.columns(4), services):
         with col:
@@ -713,7 +715,7 @@ def _intake_step2():
         "📧  Email marketing & follow-ups",
         "⚙️  Manual / repetitive data work",
         "🎨  Slow design & content creation",
-        "💬  Customer service & enquiry handling",
+        "💬  Customer service & inquiry handling",
         "📊  Reporting & tracking (manual)",
         "🔗  Tools not talking to each other",
         "📅  Scheduling & appointment management",
@@ -802,7 +804,7 @@ def _submit_inquiry():
             """,
             (
                 inquiry_id,
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 st.session_state.get("f_name"),
                 st.session_state.get("f_email"),
                 st.session_state.get("f_company", ""),
@@ -1014,7 +1016,7 @@ def _create_stripe_session(inquiry_id: str, quote: dict, name: str, email: str):
         with db_conn() as conn:
             conn.execute(
                 "INSERT INTO payments (id,inquiry_id,created_at,amount,stripe_session,status) VALUES (?,?,?,?,?,'pending')",
-                (str(uuid.uuid4())[:12], inquiry_id, datetime.utcnow().isoformat(), quote["price"], session.id),
+                (str(uuid.uuid4())[:12], inquiry_id, datetime.now(timezone.utc).isoformat(), quote["price"], session.id),
             )
 
         st.markdown(
@@ -1042,7 +1044,7 @@ def _confirm_order_test(inquiry_id: str, quote: dict, name: str, email: str):
             VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
-                project_id, inquiry_id, datetime.utcnow().isoformat(),
+                project_id, inquiry_id, datetime.now(timezone.utc).isoformat(),
                 name, email, quote["package"],
                 "pending", 0,
                 "Kick-off call to be scheduled.",
@@ -1053,7 +1055,7 @@ def _confirm_order_test(inquiry_id: str, quote: dict, name: str, email: str):
         conn.execute("UPDATE inquiries SET status='paid' WHERE id=?", (inquiry_id,))
         conn.execute(
             "INSERT INTO payments (id,inquiry_id,created_at,amount,stripe_session,status) VALUES (?,?,?,?,?,?)",
-            (str(uuid.uuid4())[:12], inquiry_id, datetime.utcnow().isoformat(), quote["price"], "TEST_MODE", "paid"),
+            (str(uuid.uuid4())[:12], inquiry_id, datetime.now(timezone.utc).isoformat(), quote["price"], "TEST_MODE", "paid"),
         )
 
     st.session_state["access_token"] = token
@@ -1159,7 +1161,7 @@ def _handle_stripe_success(inquiry_id: str, stripe_session):
             VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
-                project_id, inquiry_id, datetime.utcnow().isoformat(),
+                project_id, inquiry_id, datetime.now(timezone.utc).isoformat(),
                 name, email, pkg_name,
                 "pending", 0, "Kick-off call to be scheduled.",
                 json.dumps([]), token,
@@ -1168,7 +1170,7 @@ def _handle_stripe_success(inquiry_id: str, stripe_session):
         conn.execute("UPDATE inquiries SET status='paid' WHERE id=?", (inquiry_id,))
         conn.execute(
             "INSERT INTO payments (id,inquiry_id,created_at,amount,stripe_session,status) VALUES (?,?,?,?,?,?)",
-            (str(uuid.uuid4())[:12], inquiry_id, datetime.utcnow().isoformat(),
+            (str(uuid.uuid4())[:12], inquiry_id, datetime.now(timezone.utc).isoformat(),
              price, stripe_session.id, "paid"),
         )
 
@@ -1331,8 +1333,7 @@ def render_admin():
                 else:
                     st.error("Incorrect password.")
             st.markdown(
-                "<small style='color:#334155;'>Default password: admin1234 — "
-                "override via ADMIN_PASSWORD_HASH secret (SHA-256 hex).</small>",
+                "<small style='color:#334155;'>Set ADMIN_PASSWORD_HASH secret (SHA-256 hex) in Streamlit secrets to secure this panel.</small>",
                 unsafe_allow_html=True,
             )
         return
