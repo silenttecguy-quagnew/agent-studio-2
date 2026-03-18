@@ -45,9 +45,12 @@ Add required secrets in **App settings -> Secrets**:
 ```toml
 DEEPSEEK_API_KEY="your_deepseek_key"
 HEYGEN_API_KEY="your_heygen_key"
+OPENCLAW_API_KEY="your_openai_key"
 GITHUB_TOKEN="optional"
 GITHUB_REPO="optional_owner/repo"
 ```
+
+`OPENCLAW_API_KEY` is your OpenAI API key — required for the **NemoClaw** agents (Nemo Scout, Claw Reach, Deal Mechanic). Without it those agents will prompt you to add the key in the sidebar **🦞 OpenClaw (NemoClaw)** expander.
 
 After saving secrets, click **Reboot app**.
 
