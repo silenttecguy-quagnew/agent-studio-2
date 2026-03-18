@@ -140,47 +140,6 @@ In the sidebar, expand **🚀 Operations Dashboard** to see:
 
 ---
 
-## 7. Always-On Background Automation
-
-Run this to initialize the autonomous engine database:
-
-```bash
-python3 automation/always_on_engine.py init-db
-```
-
-Add a test lead and revenue event:
-
-```bash
-python3 automation/always_on_engine.py add-lead --name "Test Lead" --email "lead@example.com" --source website --offer "Growth Engine" --value 1999
-python3 automation/always_on_engine.py add-revenue --source stripe --type invoice_paid --amount 499
-```
-
-Run all automations once:
-
-```bash
-python3 automation/always_on_engine.py run-once --task all --topic "cyber security" --niche "managed security" --geo AU
-```
-
-Start autonomous mode in background:
-
-```bash
-nohup python3 automation/always_on_engine.py run-daemon --timezone Australia/Brisbane --topic "cyber security" --niche "managed security" --geo AU > automation/engine.log 2>&1 &
-```
-
-Check live output:
-
-```bash
-tail -f automation/engine.log
-```
-
-Read today KPI snapshot:
-
-```bash
-python3 automation/always_on_engine.py kpi-today
-```
-
----
-
 ## Troubleshooting
 
 | Problem | Fix |
