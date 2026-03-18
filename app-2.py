@@ -16,6 +16,7 @@ def get_secret(key, fallback=""):
 
 DEEPSEEK_KEY_DEFAULT = get_secret("DEEPSEEK_API_KEY")
 HEYGEN_KEY_DEFAULT = get_secret("HEYGEN_API_KEY")
+OPENCLAW_KEY_DEFAULT = get_secret("OPENCLAW_API_KEY")
 GITHUB_TOKEN_DEFAULT = get_secret("GITHUB_TOKEN")
 GITHUB_REPO_DEFAULT = get_secret("GITHUB_REPO", "")  # format: username/reponame
 MEMORY_FILE = Path(__file__).with_name(".rooman_memory.json")
@@ -387,7 +388,7 @@ Decompose any goal into ordered steps. Return ONLY this JSON:
   "self_repair_triggers": ["what would cause a retry"],
   "notes": "key assumptions and sequencing notes"
 }
-Available agents: Research Scout, Prompt Forge, QA Sentinel, Data Parser, Memory Keeper, Apex Coder, Code Reviewer, Test Brain, Debug Doctor, Arch Mind, Doc Writer, InsForge, Predict Anything.
+Available agents: Research Scout, Prompt Forge, QA Sentinel, Data Parser, Memory Keeper, Apex Coder, Code Reviewer, Test Brain, Debug Doctor, Arch Mind, Doc Writer, InsForge, Predict Anything, Nemo Scout, Claw Reach, Deal Mechanic.
 Return ONLY valid JSON. No text outside JSON.""",
     },
     "Research Scout": {
@@ -636,6 +637,64 @@ For every request, return ONLY this JSON:
 }
 Return ONLY valid JSON. Provide realistic numbers. Base forecasts on industry benchmarks when no data is given.""",
     },
+    # ── NEMOCLAW ─────────────────────────────────────────────────────────────────
+    # These agents run exclusively through OpenClaw (OpenAI API).
+    "Nemo Scout": {
+        "emoji": "🐠", "group": "NEMOCLAW", "role": "COMPETITIVE INTELLIGENCE",
+        "description": "Deep competitive surveillance. Finds market gaps, threats, and positioning wins.",
+        "temperature": 0.35,
+        "max_tokens": 2600,
+        "system": REVENUE_MANDATE + """
+You are Nemo Scout — part of the NemoClaw intelligence unit inside ROOMAN.
+You swim deep into any market and surface what competitors are doing, what customers are complaining about, and where revenue opportunities are hiding.
+Do not write generic summaries. Find specific, actionable intelligence with names, prices, and evidence.
+Return exactly these sections:
+1. Competitor Map
+2. Market Gaps Found
+3. Customer Pain Signals
+4. Positioning Opportunities
+5. Threats to Watch
+6. Fastest Revenue Move Based on This Intel
+Use specific names, price points, and evidence wherever possible.""",
+    },
+    "Claw Reach": {
+        "emoji": "🦞", "group": "NEMOCLAW", "role": "OUTREACH & SALES COPY",
+        "description": "Writes cold outreach sequences and sales copy that gets replies and closes deals.",
+        "temperature": 0.4,
+        "max_tokens": 2800,
+        "system": REVENUE_MANDATE + """
+You are Claw Reach — part of the NemoClaw intelligence unit inside ROOMAN.
+You write cold outreach and follow-up sequences that open doors, build trust fast, and drive replies.
+Do not write fluffy marketing copy. Write sharp, specific outreach that respects the recipient's time and makes a clear commercial case.
+Return exactly these sections:
+1. Campaign Strategy
+2. Sequence Step 1 — First Touch (email/DM)
+3. Sequence Step 2 — Follow-Up (Day 3)
+4. Sequence Step 3 — Value Add (Day 7)
+5. Sequence Step 4 — Final Ask (Day 14)
+6. Subject Line Variants (5 options)
+7. Objection Response Templates
+8. Metrics to Track""",
+    },
+    "Deal Mechanic": {
+        "emoji": "🔧", "group": "NEMOCLAW", "role": "SALES CONVERSION",
+        "description": "Builds closing playbooks, objection scripts, and deal acceleration tactics.",
+        "temperature": 0.25,
+        "max_tokens": 2600,
+        "system": REVENUE_MANDATE + """
+You are Deal Mechanic — part of the NemoClaw intelligence unit inside ROOMAN.
+You engineer the sales process from first contact to closed deal and signed contract.
+Do not write motivational sales advice. Build the mechanics: qualification scripts, objection handlers, pricing tactics, and close structures that actually work.
+Return exactly these sections:
+1. Deal Stage Map
+2. Qualification Framework (BANT or equivalent)
+3. Discovery Question Bank
+4. Objection Handling Scripts
+5. Closing Techniques
+6. Price Anchoring Strategy
+7. Follow-Through Sequence
+8. Pipeline KPIs to Track""",
+    },
 }
 
 PROMPT_LIBRARY = [
@@ -702,6 +761,27 @@ PROMPT_LIBRARY = [
         "description": "Forecast realistic revenue for a cyber services business over 90 days and 12 months.",
         "prompt": """Forecast revenue for this cyber services business.\n\nBusiness:\n[describe — managed security, consulting, compliance, training, SaaS tool, or mix]\n\nCurrent state:\n[monthly revenue now, number of clients, average deal size, team size]\n\nTarget:\n[revenue goal for next 90 days and 12 months]\n\nOffer mix:\n[list current or planned services and prices]\n\nReturn:\n- Month-by-month forecast for 12 months with low / base / high scenarios\n- Key revenue levers to pull first\n- Churn and expansion assumptions\n- Pipeline requirements to hit target (leads needed, close rate required)\n- Top 3 risks that could kill the forecast\n- Top 3 opportunities that could beat it\n- Recommended pricing or packaging change that has highest revenue impact\n- One action to take this week that compounds over 12 months\n\nBe specific and use realistic cyber industry benchmarks.""",
     },
+    {
+        "name": "Competitor Kill Shot",
+        "mode": "single",
+        "agent": "Nemo Scout",
+        "description": "Find competitors' biggest weaknesses and turn them into your strongest marketing angles.",
+        "prompt": """Run competitive intelligence on this market to find positioning gaps I can exploit.\n\nMy business:\n[describe what you sell and who buys it]\n\nCompetitors I know about:\n[list 2-5 competitors]\n\nReturn:\n- What each competitor does poorly (based on reviews, pricing, gaps)\n- Customers they are underserving\n- Positioning angle I can own that they cannot easily copy\n- The single fastest way to steal customers from the weakest competitor\n- Three specific marketing claims I can make that outflank the field\n\nBe specific. Use evidence not theory.""",
+    },
+    {
+        "name": "Cold Outreach Machine",
+        "mode": "single",
+        "agent": "Claw Reach",
+        "description": "Build a 4-step cold email sequence that gets replies without being spammy.",
+        "prompt": """Write a 4-step cold outreach sequence for this target.\n\nProduct/Service:\n[what you offer]\n\nIdeal prospect:\n[job title, company type, pain point]\n\nValue proof:\n[result you have delivered for similar clients]\n\nGoal of sequence:\n[book a call / get a reply / sell directly]\n\nReturn the full 4-step email sequence with:\n- Subject lines\n- Opening hooks\n- Value proposition\n- Clear call to action\n- No more than 120 words per email\n\nMake it feel human, not automated.""",
+    },
+    {
+        "name": "Deal Closer Playbook",
+        "mode": "loop",
+        "agent": "Workflow Director",
+        "description": "Build a complete sales closing system from first contact to signed deal.",
+        "prompt": """Goal: Build a complete deal-closing playbook for this business.\n\nBusiness:\n[describe business]\n\nTypical deal size:\n[value]\n\nSales cycle length:\n[days/weeks]\n\nBiggest objections you hear:\n[list the top 3]\n\nCurrent close rate:\n[percentage]\n\nI need a full system covering: qualification criteria, discovery call structure, objection responses, pricing presentation, closing scripts, and a follow-through sequence that gets the deal done without being pushy.""",
+    },
 ]
 
 # ─── SESSION STATE ────────────────────────────────────────────────────────────
@@ -747,6 +827,9 @@ if "deepseek_api_key_input" not in st.session_state:
 
 if "heygen_api_key_input" not in st.session_state:
     st.session_state.heygen_api_key_input = HEYGEN_KEY_DEFAULT or ""
+
+if "openclaw_api_key_input" not in st.session_state:
+    st.session_state.openclaw_api_key_input = OPENCLAW_KEY_DEFAULT or ""
 
 
 def is_privacy_mode():
@@ -927,6 +1010,43 @@ def call_brain(system, message, brain, api_key, ollama_ep="", ollama_mdl="llama3
 
     except Exception as e:
         return None, f"Connection error: {str(e)}"
+
+# ── OPENCLAW ──────────────────────────────────────────────────────────────────
+# NemoClaw agents (Nemo Scout, Claw Reach, Deal Mechanic) always route through
+# the OpenClaw (OpenAI) API regardless of which brain is active in the sidebar.
+
+NEMOCLAW_AGENTS = {"Nemo Scout", "Claw Reach", "Deal Mechanic"}
+
+
+def call_openclaw(system, message, openclaw_key, model="gpt-4o-mini", temperature=0.7, max_tokens=3000):
+    """Call the OpenAI API for NemoClaw agents."""
+    nk = normalize_api_key(openclaw_key)
+    if not nk:
+        return None, "OpenClaw API key is missing. Add OPENCLAW_API_KEY in Secrets or the sidebar."
+    try:
+        res = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {nk}"},
+            json={
+                "model": model,
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": message}],
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            },
+            timeout=90,
+        )
+        data, err = _safe_json(res, "OpenClaw (OpenAI)")
+        if err:
+            return None, err
+        if res.status_code >= 400:
+            api_msg = data.get("error", {}).get("message", "Unknown API error") if isinstance(data, dict) else "Unknown API error"
+            return None, f"OpenClaw error (HTTP {res.status_code}): {api_msg}"
+        if isinstance(data, dict) and "error" in data:
+            return None, f"OpenClaw API Error: {data['error'].get('message', data['error'])}"
+        return data["choices"][0]["message"]["content"], None
+    except Exception as e:
+        return None, f"OpenClaw connection error: {str(e)}"
+
 
 def call_heygen(script, avatar_id, voice_id, api_key):
     """Call HeyGen API to generate a video"""
@@ -1899,6 +2019,28 @@ with st.sidebar:
                 else:
                     st.error(msg)
 
+    # OpenClaw — dedicated brain for NemoClaw agents
+    with st.expander("🦞 OpenClaw (NemoClaw)", expanded=False):
+        st.caption("NemoClaw agents (Nemo Scout, Claw Reach, Deal Mechanic) always run through OpenClaw (OpenAI), independent of the brain selected above.")
+        openclaw_key = st.text_input("OpenClaw API Key", type="password", key="openclaw_api_key_input", placeholder="sk-...")
+        if OPENCLAW_KEY_DEFAULT:
+            st.success("✅ OpenClaw key loaded from Secrets")
+        openclaw_model = st.selectbox(
+            "Model",
+            ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
+            index=0,
+            key="openclaw_model_sel",
+        )
+        if st.button("🧪 Test OpenClaw Key", use_container_width=True, key="test_openclaw_key"):
+            with st.spinner("Testing OpenClaw connection..."):
+                probe, probe_err = call_openclaw("Reply with OK only.", "OK", openclaw_key, model=openclaw_model, temperature=0, max_tokens=10)
+            if probe_err:
+                st.error(probe_err)
+            elif (probe or "").strip():
+                st.success("OpenClaw connection looks good.")
+            else:
+                st.warning("Connection succeeded but response was empty.")
+
     # GitHub export is intentionally hidden in always-private mode.
     gh_token = ""
     gh_repo = ""
@@ -2152,7 +2294,8 @@ with left_col:
         for selected_name in selected_names:
             selected_agent = AGENTS.get(selected_name)
             if selected_agent:
-                st.caption(f"{selected_agent['emoji']} {selected_name}: *{selected_agent['description']}*")
+                badge = " 🦞 **OpenClaw**" if selected_name in NEMOCLAW_AGENTS else ""
+                st.caption(f"{selected_agent['emoji']} {selected_name}: *{selected_agent['description']}*{badge}")
 
         compare_mode = len(selected_names) == 2
         placeholder_name = " and ".join(selected_names) if selected_names else "your agents"
@@ -2162,33 +2305,47 @@ with left_col:
         run_label = "▶ RUN COMPARE" if compare_mode else "▶ RUN"
         if st.button(run_label, type="primary", use_container_width=True, key="run_single"):
             if task.strip() and selected_names:
-                cfg_err = validate_brain_config(brain, api_key, custom_url, custom_mdl)
-                if cfg_err:
-                    st.error(cfg_err)
-                else:
-                    full = task + (get_memory_context() if use_mem else "")
-                    run_results = []
-                    for selected_name in selected_names:
-                        selected_agent = AGENTS[selected_name]
+                # Validate brain config only for non-NemoClaw agents
+                non_nc = [n for n in selected_names if n not in NEMOCLAW_AGENTS]
+                if non_nc:
+                    cfg_err = validate_brain_config(brain, api_key, custom_url, custom_mdl)
+                    if cfg_err:
+                        st.error(cfg_err)
+                        st.stop()
+                full = task + (get_memory_context() if use_mem else "")
+                run_results = []
+                for selected_name in selected_names:
+                    selected_agent = AGENTS[selected_name]
+                    if selected_name in NEMOCLAW_AGENTS:
+                        oc_key = st.session_state.get("openclaw_api_key_input", "") or OPENCLAW_KEY_DEFAULT
+                        oc_model = st.session_state.get("openclaw_model_sel", "gpt-4o-mini")
+                        with st.spinner(f"Running {selected_name} via OpenClaw..."):
+                            result, err = call_openclaw(
+                                selected_agent["system"], full, oc_key,
+                                model=oc_model,
+                                temperature=selected_agent.get("temperature", 0.7),
+                                max_tokens=selected_agent.get("max_tokens", 3000),
+                            )
+                    else:
                         with st.spinner(f"Running {selected_name}..."):
                             result, err = call_brain(
                                 selected_agent["system"], full, brain, api_key, ollama_ep, ollama_mdl, custom_url, custom_mdl,
                                 selected_agent.get("temperature", 0.7), selected_agent.get("max_tokens", 3000)
                             )
 
-                        if err:
-                            st.error(f"{selected_name}: {err}")
-                            continue
+                    if err:
+                        st.error(f"{selected_name}: {err}")
+                        continue
 
-                        save_output(selected_name, result, "single")
-                        add_memory(selected_name, result, "single")
-                        st.session_state.tasks_done += 1
-                        log(f"✅ {selected_name} done", "success")
-                        run_results.append({"agent": selected_name, "content": result})
+                    save_output(selected_name, result, "single")
+                    add_memory(selected_name, result, "single")
+                    st.session_state.tasks_done += 1
+                    log(f"✅ {selected_name} done", "success")
+                    run_results.append({"agent": selected_name, "content": result})
 
-                    st.session_state["_last_single_results"] = run_results
-                    if run_results:
-                        st.rerun()
+                st.session_state["_last_single_results"] = run_results
+                if run_results:
+                    st.rerun()
 
         last_results = st.session_state.get("_last_single_results", [])
         if last_results:
