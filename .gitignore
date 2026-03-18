@@ -10,6 +10,7 @@ __pycache__/
 .rooman_business_profile.json
 .rooman_avatar_profile.json
 automation/always_on.db
+automation/rooman_engine.db
 automation/engine.log
 
 # Streamlit local settings/secrets
